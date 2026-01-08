@@ -3,7 +3,7 @@
 # GRAPHDECO research group, https://team.inria.fr/graphdeco
 # All rights reserved.
 #
-# This software is free for non-commercial, research and evaluation use 
+# This software is free for non-commercial, research and evaluation use
 # under the terms of the LICENSE.md file.
 #
 # For inquiries contact  george.drettakis@inria.fr
@@ -26,9 +26,21 @@ from utils.image_utils import psnr
 from utils.loss_utils import ssim
 from lpipsPyTorch import lpips
 
-def render_set(model_path, name, iteration, views, gaussians, pipeline, background, resol=1):
-    render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
-    gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
+
+def render_set(
+    model_path,
+    name,
+    iteration,
+    views,
+    gaussians,
+    pipeline,
+    background,
+    resol=1,
+):
+    render_path = os.path.join(
+        model_path, name, "ours_{}".format(iteration), "renders")
+    gts_path = os.path.join(
+        model_path, name, "ours_{}".format(iteration), "gt")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
@@ -41,11 +53,14 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         gt = view.original_image[0:3, :, :].cuda()
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
-        torchvision.utils.save_image(rendering, os.path.join(render_path, '{0:05d}'.format(idx) + ".png"))
-        torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(rendering, os.path.join(
+            render_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(gt, os.path.join(
+            gts_path, '{0:05d}'.format(idx) + ".png"))
         PSNR.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
         SSIM.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
-        LPIPS.append(lpips(rendering.unsqueeze(0), gt.unsqueeze(0), net_type='vgg'))
+        LPIPS.append(lpips(rendering.unsqueeze(
+            0), gt.unsqueeze(0), net_type='vgg'))
 
     psnr_mean = torch.tensor(PSNR).mean().item()
     ssim_mean = torch.tensor(SSIM).mean().item()
@@ -60,31 +75,67 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
         f.write('SSIM : {:>12.7f}\n'.format(ssim_mean))
         f.write('LPIPS : {:>12.7f}\n'.format(lpips_mean))
 
-def render_sets(dataset : ModelParams, iteration : int, pipeline : PipelineParams, skip_train : bool, skip_test : bool):
+
+def render_sets(
+    dataset: ModelParams,
+    iteration: int,
+    pipeline: PipelineParams,
+    skip_train: bool,
+    skip_test: bool,
+):
     with torch.no_grad():
         gaussians = GaussianModel(dataset.sh_degree)
-        scene = Scene(dataset, gaussians, load_iteration=iteration, shuffle=False)
+        scene = Scene(
+            dataset, gaussians,
+            load_iteration=iteration, shuffle=False,
+        )
 
-        bg_color = [1,1,1] if dataset.white_background else [0, 0, 0]
+        bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         if not skip_train:
-             render_set(dataset.model_path, "train", scene.loaded_iter, scene.getTrainCameras(), gaussians, pipeline, background)
+            render_set(
+                dataset.model_path, "train", scene.loaded_iter,
+                scene.getTrainCameras(), gaussians, pipeline, background,
+            )
 
         if not skip_test:
-             render_set(dataset.model_path, "test", scene.loaded_iter, scene.getTestCameras(), gaussians, pipeline, background)
+            render_set(
+                dataset.model_path, "test", scene.loaded_iter,
+                scene.getTestCameras(), gaussians, pipeline, background,
+            )
+
+
+def main(args):
+    print("Rendering " + args.model_path)
+    safe_state(getattr(args, "quiet", False))
+
+    # Build param helpers without using argparse (use provided args)
+    model = ModelParams(ArgumentParser(add_help=False), sentinel=True)
+    pipeline = PipelineParams(ArgumentParser(add_help=False))
+
+    dataset = model.extract(args)
+    pipe = pipeline.extract(args)
+
+    iterations = args.iteration if isinstance(
+        args.iteration, (list, tuple)) else [args.iteration]
+    skip_train = getattr(args, "skip_train", False)
+    skip_test = getattr(args, "skip_test", False)
+
+    for it in iterations:
+        render_sets(dataset, it, pipe, skip_train, skip_test)
+
 
 if __name__ == "__main__":
     # Set up command line argument parser
     parser = ArgumentParser(description="Testing script parameters")
     model = ModelParams(parser, sentinel=True)
     pipeline = PipelineParams(parser)
-    parser.add_argument("--iteration", default=-1, type=int)
+    parser.add_argument("--iteration", nargs="+", default=[-1], type=int)
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
     args = get_combined_args(parser)
-    print("Rendering " + args.model_path)
 
-    safe_state(args.quiet)
-    render_sets(model.extract(args), args.iteration, pipeline.extract(args), args.skip_train, args.skip_test)
+    # Delegate to main with parsed args
+    main(args)

@@ -19,40 +19,56 @@ import re
 # This Python script is based on the shell converter script provided in the MipNerF 360 repository.
 parser = ArgumentParser("metrics")
 parser.add_argument("--path", "-s", required=True, type=str)
-parser.add_argument("--iteration", "-i", required=False, type=str, default='10000')
+parser.add_argument("--iteration", "-i", nargs="+", default=[10000], type=int)
 args = parser.parse_args()
-PSNR = 0
-SSIM = 0
-LPIPS = 0
 
+dir_lst = glob(os.path.join(args.path, '*'))
 
-metric_path = os.path.join(args.path, 'metrics_mean.txt')
-if os.path.exists(metric_path):
-    os.remove(metric_path)
+iterations = args.iteration if isinstance(args.iteration, (list, tuple)) else [args.iteration]
 
-dir_lst = glob(args.path + '/*')
-for d in dir_lst:
-    with open (os.path.join(d, 'metrics_{}.txt'.format(args.iteration)), 'r') as f:
-        l = f.readline()
-        psnr = re.sub(r'[^0-9.]', '', l)
-        print(d, psnr)
-        PSNR += float(psnr)
-        l = f.readline()
-        ssim = re.sub(r'[^0-9.]', '', l)
-        SSIM += float(ssim)
-        l = f.readline()
-        lpips = re.sub(r'[^0-9.]', '', l)
-        LPIPS += float(lpips)
+for it in iterations:
+    PSNR = 0.0
+    SSIM = 0.0
+    LPIPS = 0.0
+    count = 0
 
-PSNR /= len(dir_lst)
-SSIM /= len(dir_lst)
-LPIPS /= len(dir_lst)
+    for d in dir_lst:
+        metrics_file = os.path.join(d, f'metrics_{it}.txt')
+        if not os.path.exists(metrics_file):
+            logging.warning(f"Missing metrics file: {metrics_file}")
+            continue
 
-with open(metric_path, 'w') as f:
-    f.write('PSNR : {}\n'.format(PSNR))
-    f.write('SSIM : {}\n'.format(SSIM))
-    f.write('LPIPS : {}\n'.format(LPIPS))
-    
-print(PSNR)
-print(SSIM)
-print(LPIPS)
+        with open(metrics_file, 'r') as f:
+            l = f.readline()
+            psnr = re.sub(r'[^0-9.\-eE]', '', l)
+            print(d, psnr)
+            PSNR += float(psnr)
+
+            l = f.readline()
+            ssim = re.sub(r'[^0-9.\-eE]', '', l)
+            SSIM += float(ssim)
+
+            l = f.readline()
+            lpips = re.sub(r'[^0-9.\-eE]', '', l)
+            LPIPS += float(lpips)
+
+        count += 1
+
+    if count == 0:
+        logging.warning(f"No metrics found for iteration {it} in {args.path}")
+        continue
+
+    PSNR /= count
+    SSIM /= count
+    LPIPS /= count
+
+    metric_path = os.path.join(args.path, f'metrics_mean_{it}.txt')
+    with open(metric_path, 'w') as f:
+        f.write(f'PSNR : {PSNR}\n')
+        f.write(f'SSIM : {SSIM}\n')
+        f.write(f'LPIPS : {LPIPS}\n')
+
+    print(f'Iteration {it}:')
+    print(PSNR)
+    print(SSIM)
+    print(LPIPS)
