@@ -44,7 +44,11 @@ def loadCam(args, id, cam_info, resolution_scale):
                   image_name=cam_info.image_name, uid=id, data_device=args.data_device)
 
 
-def cameraList_from_camInfos(cam_infos, resolution_scale, args):
+def cameraList_from_camInfos(
+    cam_infos,
+    resolution_scale,
+    args,
+) -> list[Camera]:
     camera_list = []
 
     for id, c in enumerate(cam_infos):

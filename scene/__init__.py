@@ -17,7 +17,7 @@ from scene.dataset_readers import sceneLoadTypeCallbacks
 from scene.gaussian_model import GaussianModel
 from arguments import ModelParams
 from utils.camera_utils import cameraList_from_camInfos, camera_to_JSON
-from scene.cameras import PseudoCamera
+from scene.cameras import Camera, PseudoCamera
 
 class Scene:
 
@@ -39,9 +39,9 @@ class Scene:
                 self.loaded_iter = load_iteration
             print("Loading trained model at iteration {}".format(self.loaded_iter))
 
-        self.train_cameras = {}
-        self.test_cameras = {}
-        self.pseudo_cameras = {}
+        self.train_cameras: dict[float, list[Camera]] = {}
+        self.test_cameras: dict[float, list[Camera]] = {}
+        self.pseudo_cameras: dict[float, list[Camera]] = {}
         print(args.source_path)
         if args.source_path.find('replica_few') != -1:
             print("Found replica path, assuming Replica data set!")
