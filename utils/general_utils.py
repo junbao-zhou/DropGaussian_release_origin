@@ -131,3 +131,21 @@ def safe_state(silent):
     np.random.seed(0)
     torch.manual_seed(0)
     torch.cuda.set_device(torch.device("cuda:0"))
+
+
+def _to_tensor(
+    array: np.ndarray,
+    dtype: torch.dtype = None,
+    device: torch.device = None,
+) -> torch.Tensor:
+    return torch.from_numpy(array).to(dtype=dtype, device=device)
+
+
+def _to_numpy(
+    tensor: torch.Tensor,
+    dtype: np.dtype = None,
+) ->  np.ndarray:
+    array = tensor.detach().cpu().numpy()
+    if dtype is not None:
+        array = array.astype(dtype)
+    return array
