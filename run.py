@@ -95,11 +95,10 @@ def run_multiple_tasks_multiple_gpus(
     gpu_id_list: list[int],
     func_list: list[Callable],
     arg_list: list[list] | None = None,
-) -> tuple[list, list]:
+) -> list:
     if arg_list is None:
         arg_list = [[]] * len(func_list)
 
-    failures = []
     results = []
 
     with ExitStack() as stack:
@@ -122,14 +121,10 @@ def run_multiple_tasks_multiple_gpus(
 
         for completed_future in cf.as_completed(future_to_gpu.keys()):
             gpu_id = future_to_gpu[completed_future]
-            try:
-                results.append(completed_future.result())
-            except Exception as e:
-                failures.append(e)
-            finally:
-                _print_gpu_state(gpu_id, "completed")
+            results.append(completed_future.result())
+            _print_gpu_state(gpu_id, "completed")
 
-    return results, failures
+    return results
 
 
 def scene_train_and_render(
@@ -148,19 +143,13 @@ def scene_train_and_render(
 
 
 def main():
-    GPU_ID_LIST = [0, 1, 2, 3]
+    GPU_ID_LIST = [0, 1, 2, 3, 4, 5, 6, 7]
 
     dataset_path = Path("./DropGaussian_Data/nerf_llff_data")
     # dataset_path = Path("./DropGaussian_Data/mipnerf360")
 
-    dropout_algorithm = "origin"
-    dropout_algorithm = "indices"
-
-    method_name = f"{dataset_path.name}-{dropout_algorithm}"
-
-    # output_dir = Path("./output") / dataset_path.name
-    output_dir = Path("./output") / method_name
-    output_dir = Path("./output_debug") / method_name
+    output_dir = Path("./output") / dataset_path.name
+    output_dir = Path("./output_debug") / dataset_path.name
     output_dir.mkdir(parents=True, exist_ok=True)
 
     scene_list = [scene_path.name for scene_path in dataset_path.iterdir()]
@@ -169,7 +158,7 @@ def main():
 
     if dataset_path.name == "nerf_llff_data":
         view_list = [3, 6, 9]
-        # view_list = [3]
+        view_list = [3]
     elif dataset_path.name == "mipnerf360":
         view_list = [12, 24]
 
@@ -185,16 +174,35 @@ def main():
 
     save_iterations = [6000, 8000, 10000]
 
+    dropout_algorithm = "origin"
+    dropout_algorithm = "indices"
+
+    method_name = f"{dropout_algorithm}"
+
     for view in view_list:
         print(f"{view = }")
 
         view_output_dir = resolution_output_dir / f"view_{view}"
         view_output_dir.mkdir(parents=True, exist_ok=True)
 
+        method_output_dir = view_output_dir / method_name
+        method_output_dir.mkdir(parents=True, exist_ok=True)
+
         for repeat_index in range(repeat_number):
             print(f"{repeat_index = }")
 
-            repeat_output_dir = view_output_dir / f"output_{repeat_index}"
+            existing_repeat_output_dirs = list(
+                method_output_dir.glob(f"output_*")
+            )
+            existing_max_repeat_index = max(
+                [
+                    int(d.name.split("_")[-1])
+                    for d in existing_repeat_output_dirs
+                    if d.name.split("_")[-1].isdigit()
+                ]
+            )
+
+            repeat_output_dir = method_output_dir / f"output_{existing_max_repeat_index + 1}"
             repeat_output_dir.mkdir(parents=True, exist_ok=True)
 
             scene_task_list = []
