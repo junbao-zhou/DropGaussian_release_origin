@@ -25,14 +25,13 @@ def compute_mean_metrics(
     scenes=[],
 ):
     def get_scene_dir_list():
-        return [
-            os.path.join(path, scene)
-            for scene in scenes
-        ]
+        return [os.path.join(path, scene) for scene in scenes]
+
     scene_dir_list = get_scene_dir_list()
 
-    iterations = iterations if isinstance(
-        iterations, (list, tuple)) else [iterations]
+    iterations = (
+        iterations if isinstance(iterations, (list, tuple)) else [iterations]
+    )
 
     for it in iterations:
         PSNR = 0.0
@@ -64,11 +63,12 @@ def compute_mean_metrics(
 
         metric_path = os.path.join(path, f"metrics_mean_{name}_{it}.json")
         with open(metric_path, "w") as f:
-            json.dump({
-                "PSNR": PSNR,
-                "SSIM": SSIM,
-                "LPIPS": LPIPS,
-            },
+            json.dump(
+                {
+                    "PSNR": PSNR,
+                    "SSIM": SSIM,
+                    "LPIPS": LPIPS,
+                },
                 f,
                 indent=4,
             )
@@ -84,22 +84,25 @@ def build_parser():
     parser.add_argument("--path", "-s", required=True, type=str)
     parser.add_argument("--name", "-n", required=True, type=str)
     parser.add_argument(
-        "--iteration", "-i", nargs="+",
-        default=[10000], type=int)
+        "--iteration", "-i", nargs="+", default=[10000], type=int
+    )
     parser.add_argument("--quiet", action="store_true")
     parser.add_argument("--scenes", nargs="+", default=[])
     return parser
 
 
-def main(arg_list=None):
+def main(
+    arg_list=None,
+):
     parser = build_parser()
     if arg_list is not None:
         args = parser.parse_args(arg_list)
     else:
         args = parser.parse_args()
     logging.basicConfig(
-        level=logging.ERROR if getattr(
-            args, "quiet", False) else logging.WARNING,
+        level=(
+            logging.ERROR if getattr(args, "quiet", False) else logging.WARNING
+        ),
         format="%(levelname)s: %(message)s",
     )
     compute_mean_metrics(

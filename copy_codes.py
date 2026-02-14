@@ -31,19 +31,60 @@ from pathlib import Path
 from typing import List, Optional, Callable
 
 CODE_EXTENSIONS = {
-    ".py",".pyi",".ipynb",
-    ".c",".cc",".cpp",".cxx",".h",".hpp",
-    ".java",".js",".mjs",".cjs",".ts",".tsx",
-    ".go",".rs",".rb",".php",".sh",".bash",".zsh",
-    ".ps1",".psm1",".pl",".pm",".lua",".r",".R",
-    ".swift",".kt",".kts",".scala",".sql",".yaml",".yml",
-    ".toml",".ini",".cfg",".json",".md",".txt",
+    ".py",
+    ".pyi",
+    ".ipynb",
+    ".c",
+    ".cc",
+    ".cpp",
+    ".cxx",
+    ".h",
+    ".hpp",
+    ".java",
+    ".js",
+    ".mjs",
+    ".cjs",
+    ".ts",
+    ".tsx",
+    ".go",
+    ".rs",
+    ".rb",
+    ".php",
+    ".sh",
+    ".bash",
+    ".zsh",
+    ".ps1",
+    ".psm1",
+    ".pl",
+    ".pm",
+    ".lua",
+    ".r",
+    ".R",
+    ".swift",
+    ".kt",
+    ".kts",
+    ".scala",
+    ".sql",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".ini",
+    ".cfg",
+    ".json",
+    ".md",
+    ".txt",
     ".cu",
     ".gitignore",
-    "LICENSE","LICENSE.txt","README","README.md",
+    "LICENSE",
+    "LICENSE.txt",
+    "README",
+    "README.md",
 }
 
-def load_gitignore(root: Path) -> List[str]:
+
+def load_gitignore(
+    root: Path,
+) -> List[str]:
     gi = root / ".gitignore"
     if not gi.is_file():
         return []
@@ -55,10 +96,16 @@ def load_gitignore(root: Path) -> List[str]:
         lines.append(line)
     return lines
 
+
 class IgnoreMatcher:
     """Simplified .gitignore fallback (not fully spec compliant)."""
-    def __init__(self, patterns: List[str]):
+
+    def __init__(
+        self,
+        patterns: List[str],
+    ):
         import fnmatch
+
         self.fnmatch = fnmatch
         self.rules = []
         for raw in patterns:
@@ -72,7 +119,11 @@ class IgnoreMatcher:
                 pat = pat[1:]
             self.rules.append((neg, dir_only, anchored, pat))
 
-    def is_ignored(self, rel_path: str, is_dir: bool) -> bool:
+    def is_ignored(
+        self,
+        rel_path: str,
+        is_dir: bool,
+    ) -> bool:
         rel_path_norm = rel_path.replace("\\", "/")
         base = rel_path_norm.rsplit("/", 1)[-1]
         ignored = False
@@ -84,24 +135,34 @@ class IgnoreMatcher:
                 if self.fnmatch.fnmatch(rel_path_norm, pat):
                     matched = True
             else:
-                if (self.fnmatch.fnmatch(rel_path_norm, pat) or
-                        self.fnmatch.fnmatch(base, pat)):
+                if self.fnmatch.fnmatch(
+                    rel_path_norm, pat
+                ) or self.fnmatch.fnmatch(base, pat):
                     matched = True
             if matched:
                 ignored = not neg
         return ignored
 
-def build_matcher(patterns: List[str]) -> Callable[[str, bool], bool]:
+
+def build_matcher(
+    patterns: List[str],
+) -> Callable[[str, bool], bool]:
     if not patterns:
         return lambda rel, is_dir: False
     try:
         import pathspec  # type: ignore
+
         spec = pathspec.PathSpec.from_lines("gitwildmatch", patterns)
         return lambda rel, is_dir: spec.match_file(rel)
     except Exception:
         return IgnoreMatcher(patterns).is_ignored
 
-def collect_files(root: Path, matcher, code_only: bool) -> List[Path]:
+
+def collect_files(
+    root: Path,
+    matcher,
+    code_only: bool,
+) -> List[Path]:
     out: List[Path] = []
     for dirpath, dirnames, filenames in os.walk(root):
         rel_dir = os.path.relpath(dirpath, root)
@@ -128,7 +189,10 @@ def collect_files(root: Path, matcher, code_only: bool) -> List[Path]:
                 out.append(p)
     return out
 
-def is_remote_destination(dest: str) -> bool:
+
+def is_remote_destination(
+    dest: str,
+) -> bool:
     # Basic heuristic: pattern host:path or user@host:path
     if ":" not in dest:
         return False
@@ -140,12 +204,21 @@ def is_remote_destination(dest: str) -> bool:
         return False
     return True
 
-def ensure_remote_dir(dest: str) -> int:
+
+def ensure_remote_dir(
+    dest: str,
+) -> int:
     host, path = dest.split(":", 1)
     cmd = ["ssh", host, "mkdir", "-p", f"{path}"]
     return subprocess.call(cmd)
 
-def copy_local(files: List[Path], root: Path, dest: Path, overwrite: bool):
+
+def copy_local(
+    files: List[Path],
+    root: Path,
+    dest: Path,
+    overwrite: bool,
+):
     for src in files:
         rel = src.relative_to(root)
         target = dest / rel
@@ -154,33 +227,78 @@ def copy_local(files: List[Path], root: Path, dest: Path, overwrite: bool):
             continue
         shutil.copy2(src, target)
 
-def stage_files(files: List[Path], root: Path, staging: Path):
+
+def stage_files(
+    files: List[Path],
+    root: Path,
+    staging: Path,
+):
     for src in files:
         rel = src.relative_to(root)
         target = staging / rel
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(src, target)
 
-def scp_transfer(staging: Path, dest: str, scp_args: List[str]) -> int:
+
+def scp_transfer(
+    staging: Path,
+    dest: str,
+    scp_args: List[str],
+) -> int:
     entries = list(staging.iterdir())
     if not entries:
         return 0
     # Use separate paths to avoid nesting staging dir
-    cmd = ["scp", "-r"] + scp_args + [str(p) for p in entries] + [dest.rstrip("/") + "/"]
+    cmd = (
+        ["scp", "-r"]
+        + scp_args
+        + [str(p) for p in entries]
+        + [dest.rstrip("/") + "/"]
+    )
     return subprocess.call(cmd)
 
-def parse_args(argv: Optional[List[str]] = None):
-    ap = argparse.ArgumentParser(description="Copy project code files honoring .gitignore.")
+
+def parse_args(
+    argv: Optional[List[str]] = None,
+):
+    ap = argparse.ArgumentParser(
+        description="Copy project code files honoring .gitignore."
+    )
     ap.add_argument("--root", default=".", help="Project root (default: .)")
-    ap.add_argument("--dest", required=True, help="Destination directory (local path or [user@]host:/path).")
-    ap.add_argument("--all-files", action="store_true", help="Include non-code files (still honors .gitignore).")
-    ap.add_argument("--overwrite", action="store_true", help="Overwrite existing local files.")
-    ap.add_argument("--dry-run", action="store_true", help="List files without copying.")
-    ap.add_argument("--mkdir", action="store_true", help="Create remote destination directory via ssh before scp.")
-    ap.add_argument("--scp-args", default="", help="Extra arguments for scp (e.g. '-C -l 8192').")
+    ap.add_argument(
+        "--dest",
+        required=True,
+        help="Destination directory (local path or [user@]host:/path).",
+    )
+    ap.add_argument(
+        "--all-files",
+        action="store_true",
+        help="Include non-code files (still honors .gitignore).",
+    )
+    ap.add_argument(
+        "--overwrite",
+        action="store_true",
+        help="Overwrite existing local files.",
+    )
+    ap.add_argument(
+        "--dry-run", action="store_true", help="List files without copying."
+    )
+    ap.add_argument(
+        "--mkdir",
+        action="store_true",
+        help="Create remote destination directory via ssh before scp.",
+    )
+    ap.add_argument(
+        "--scp-args",
+        default="",
+        help="Extra arguments for scp (e.g. '-C -l 8192').",
+    )
     return ap.parse_args(argv)
 
-def main(argv: Optional[List[str]] = None) -> int:
+
+def main(
+    argv: Optional[List[str]] = None,
+) -> int:
     args = parse_args(argv)
     root = Path(args.root).resolve()
     if not root.is_dir():
@@ -219,6 +337,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         copy_local(files_sorted, root, dest_path, overwrite=args.overwrite)
         print(f"Local copy complete at {dest_path}")
         return 0
+
 
 if __name__ == "__main__":
     raise SystemExit(main())

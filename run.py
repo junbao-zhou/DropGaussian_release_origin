@@ -21,7 +21,10 @@ def get_gpu_id(
     return gpu_id
 
 
-def _print_gpu_state(gpu_id: int, tag: str):
+def _print_gpu_state(
+    gpu_id: int,
+    tag: str,
+):
     """Best-effort console check of GPU memory + active compute processes."""
 
     print(f"\n[{tag}] nvidia-smi (gpu {gpu_id})")
@@ -75,7 +78,9 @@ def _make_executor(
     # This improves CUDA resource release behavior and avoids cross-task CUDA reuse pitfalls.
     sig = inspect.signature(cf.ProcessPoolExecutor)
     if "max_tasks_per_child" in sig.parameters:
-        print("Using max_tasks_per_child=1 for better CUDA resource management.")
+        print(
+            "Using max_tasks_per_child=1 for better CUDA resource management."
+        )
         kwargs["max_tasks_per_child"] = 1
 
     if initializer is not None:
@@ -105,7 +110,8 @@ def run_multiple_tasks_multiple_gpus(
                     initializer=init_worker_gpu,
                     initargs=(gpu_id,),
                 )
-            ) for gpu_id in gpu_id_list
+            )
+            for gpu_id in gpu_id_list
         ]
         future_to_gpu: dict[cf.Future, int] = {}
         for func_id, (func, args) in enumerate(zip(func_list, arg_list)):
@@ -122,7 +128,6 @@ def run_multiple_tasks_multiple_gpus(
                 failures.append(e)
             finally:
                 _print_gpu_state(gpu_id, "completed")
-    
 
     return results, failures
 
@@ -133,6 +138,7 @@ def scene_train_and_render(
 ):
     from train import main as train_main
     from render import main as render_main
+
     train_main(
         arg_list=train_arg_list,
     )
@@ -167,8 +173,7 @@ def main():
     elif dataset_path.name == "mipnerf360":
         view_list = [12, 24]
 
-    base_listen_port = 6910 \
-        if dataset_path.name == "mipnerf360" else 6909
+    base_listen_port = 6910 if dataset_path.name == "mipnerf360" else 6909
 
     repeat_number = 4
     # repeat_number = 1
@@ -208,20 +213,34 @@ def main():
                 scene_task = partial(
                     scene_train_and_render,
                     train_arg_list=[
-                        "--source_path", str(scene_path),
-                        "--model_path", str(model_path),
+                        "--source_path",
+                        str(scene_path),
+                        "--model_path",
+                        str(model_path),
                         "--eval",
-                        "--resolution", f"{resolution}",
-                        "--n_views", f"{view}",
-                        "--test_iterations", "5000", "6000", "8000", "10000",
-                        "--save_iterations", *[str(it) for it in save_iterations],
-                        "--port", str(base_listen_port + scene_index),
-                        "--dropout_algorithm", dropout_algorithm,
+                        "--resolution",
+                        f"{resolution}",
+                        "--n_views",
+                        f"{view}",
+                        "--test_iterations",
+                        "5000",
+                        "6000",
+                        "8000",
+                        "10000",
+                        "--save_iterations",
+                        *[str(it) for it in save_iterations],
+                        "--port",
+                        str(base_listen_port + scene_index),
+                        "--dropout_algorithm",
+                        dropout_algorithm,
                     ],
                     render_arg_list=[
-                        "--model_path", str(model_path),
-                        "--resolution", f"{resolution}",
-                        "--iteration", *[str(it) for it in save_iterations],
+                        "--model_path",
+                        str(model_path),
+                        "--resolution",
+                        f"{resolution}",
+                        "--iteration",
+                        *[str(it) for it in save_iterations],
                     ],
                 )
 
@@ -232,15 +251,19 @@ def main():
                 func_list=scene_task_list,
             )
 
-
             from metric import main as metric_main
+
             for name in ["train", "test"]:
                 metric_main(
                     arg_list=[
-                        "--path", str(repeat_output_dir),
-                        "--name", name,
-                        "--iteration", *[str(it) for it in save_iterations],
-                        "--scenes", *scene_list,
+                        "--path",
+                        str(repeat_output_dir),
+                        "--name",
+                        name,
+                        "--iteration",
+                        *[str(it) for it in save_iterations],
+                        "--scenes",
+                        *scene_list,
                     ],
                 )
 

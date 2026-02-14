@@ -11,7 +11,10 @@
 
 import torch
 import math
-from diff_gaussian_rasterization import GaussianRasterizationSettings, GaussianRasterizer
+from diff_gaussian_rasterization import (
+    GaussianRasterizationSettings,
+    GaussianRasterizer,
+)
 from debug import SimpleLogger
 from scene.gaussian_model import GaussianModel
 from utils.sh_utils import eval_sh
@@ -30,14 +33,21 @@ def render(
     logger: SimpleLogger = None,
 ):
     """
-    Render the scene. 
+    Render the scene.
 
     Background tensor (bg_color) must be on GPU!
     """
 
     # Create zero tensor. We will use it to make pytorch return gradients of the 2D (screen-space) means
-    screenspace_points = torch.zeros_like(
-        pc.get_xyz, dtype=pc.get_xyz.dtype, requires_grad=True, device="cuda") + 0
+    screenspace_points = (
+        torch.zeros_like(
+            pc.get_xyz,
+            dtype=pc.get_xyz.dtype,
+            requires_grad=True,
+            device="cuda",
+        )
+        + 0
+    )
     try:
         screenspace_points.retain_grad()
     except:
@@ -86,10 +96,12 @@ def render(
     colors_precomp = None
     if override_color is None:
         if pipe.convert_SHs_python:
-            shs_view = pc.get_features.transpose(
-                1, 2).view(-1, 3, (pc.max_sh_degree + 1)**2)
-            dir_pp = (
-                pc.get_xyz - viewpoint_camera.camera_center.repeat(pc.get_features.shape[0], 1))
+            shs_view = pc.get_features.transpose(1, 2).view(
+                -1, 3, (pc.max_sh_degree + 1) ** 2
+            )
+            dir_pp = pc.get_xyz - viewpoint_camera.camera_center.repeat(
+                pc.get_features.shape[0], 1
+            )
             dir_pp_normalized = dir_pp / dir_pp.norm(dim=1, keepdim=True)
             sh2rgb = eval_sh(pc.active_sh_degree, shs_view, dir_pp_normalized)
             colors_precomp = torch.clamp_min(sh2rgb + 0.5, 0.0)
@@ -102,7 +114,8 @@ def render(
     if is_train:
         # Create initial compensation factor (1 for each Gaussian)
         compensation = torch.ones(
-            opacity.shape[0], dtype=torch.float32, device="cuda")
+            opacity.shape[0], dtype=torch.float32, device="cuda"
+        )
 
         # Apply DropGaussian with compensation
         drop_rate = 0.2 * (iteration / 10000)
@@ -117,8 +130,9 @@ def render(
             if iteration % 100 == 0 and logger is not None:
                 logger.debug(f"""[{iteration}] {drop_number = }""")
             device = opacity.device
-            drop_indices = torch.randperm(
-                opacity.shape[0], device=device)[:drop_number]
+            drop_indices = torch.randperm(opacity.shape[0], device=device)[
+                :drop_number
+            ]
             keep_mask = torch.ones_like(compensation, device=device)
             keep_mask[drop_indices] = 0.0
             # Inverted-dropout style rescaling

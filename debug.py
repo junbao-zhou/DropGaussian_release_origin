@@ -1,4 +1,3 @@
-
 import logging
 import os
 import torch
@@ -19,8 +18,9 @@ def save_image(
     # os.mkdir(filename.parent)
     print(f"Debug: Created directory {filename.parent = }")
 
-    assert image.ndim == 3 and image.shape[
-        0] == 3, "Image tensor must have shape (3, H, W)"
+    assert (
+        image.ndim == 3 and image.shape[0] == 3
+    ), "Image tensor must have shape (3, H, W)"
 
     image = image.detach().cpu()
 
@@ -68,8 +68,9 @@ def save_scatter(
         x_plot[x_neginf] = min_finite
 
     # Valid finite (excluding original +/-inf & NaN) and valid y
-    finite_valid = finite_x_mask & (~x_posinf) & (
-        ~x_neginf) & (~x_nan) & np.isfinite(y_np)
+    finite_valid = (
+        finite_x_mask & (~x_posinf) & (~x_neginf) & (~x_nan) & np.isfinite(y_np)
+    )
     posinf_valid = x_posinf & np.isfinite(y_np)
     neginf_valid = x_neginf & np.isfinite(y_np)
 
@@ -78,27 +79,47 @@ def save_scatter(
     any_points = False
     if finite_valid.any():
         plt.scatter(
-            x_plot[finite_valid], y_np[finite_valid],
-            s=4, alpha=0.35, edgecolors="none", rasterized=True, color="#666666",
+            x_plot[finite_valid],
+            y_np[finite_valid],
+            s=4,
+            alpha=0.35,
+            edgecolors="none",
+            rasterized=True,
+            color="#666666",
         )
         any_points = True
     if posinf_valid.any():
         plt.scatter(
-            x_plot[posinf_valid], y_np[posinf_valid],
-            s=18, alpha=0.85, edgecolors="none", rasterized=True, color="#d62728",
+            x_plot[posinf_valid],
+            y_np[posinf_valid],
+            s=18,
+            alpha=0.85,
+            edgecolors="none",
+            rasterized=True,
+            color="#d62728",
         )
         any_points = True
     if neginf_valid.any():
         plt.scatter(
-            x_plot[neginf_valid], y_np[neginf_valid],
-            s=18, alpha=0.85, edgecolors="none", rasterized=True, color="#1f77b4",
+            x_plot[neginf_valid],
+            y_np[neginf_valid],
+            s=18,
+            alpha=0.85,
+            edgecolors="none",
+            rasterized=True,
+            color="#1f77b4",
         )
         any_points = True
 
     if not any_points:
         plt.text(
-            0.5, 0.5, "No finite points to plot",
-            ha="center", va="center", fontsize=10, transform=plt.gca().transAxes,
+            0.5,
+            0.5,
+            "No finite points to plot",
+            ha="center",
+            va="center",
+            fontsize=10,
+            transform=plt.gca().transAxes,
         )
 
     # Title: exclude +/-inf counts per requirement; keep NaN / non‑finite y diagnostics
@@ -210,7 +231,9 @@ class SimpleLogger:
     ):
         self.logger = logging.getLogger(f"SimpleLogger:{id(self)}")
         self.logger.setLevel(level)
-        self.logger.propagate = False  # Avoid duplicate messages if root configured
+        self.logger.propagate = (
+            False  # Avoid duplicate messages if root configured
+        )
 
         handler: logging.Handler
         if filename:
@@ -278,7 +301,9 @@ class SimpleLogger:
         arr = data.detach().float().view(-1).cpu()
 
         counts, bin_edges, stats = _calc_hist(
-            arr, bins=bins, include_stats=True,
+            arr,
+            bins=bins,
+            include_stats=True,
         )
 
         matplotlib.use("Agg")
@@ -289,8 +314,13 @@ class SimpleLogger:
             plt.hist(finite_np, bins=bin_edges.numpy())
         else:
             plt.text(
-                0.5, 0.5, "No finite values", ha="center", va="center",
-                fontsize=11, transform=plt.gca().transAxes,
+                0.5,
+                0.5,
+                "No finite values",
+                ha="center",
+                va="center",
+                fontsize=11,
+                transform=plt.gca().transAxes,
             )
 
         title = f"{name}{suffix}"
