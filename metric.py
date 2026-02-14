@@ -9,66 +9,106 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import json
 import os
 import logging
 from glob import glob
 from argparse import ArgumentParser
-import shutil
 import re
+from pathlib import Path
 
-# This Python script is based on the shell converter script provided in the MipNerF 360 repository.
-parser = ArgumentParser("metrics")
-parser.add_argument("--path", "-s", required=True, type=str)
-parser.add_argument("--iteration", "-i", nargs="+", default=[10000], type=int)
-args = parser.parse_args()
 
-dir_lst = glob(os.path.join(args.path, '*'))
+def compute_mean_metrics(
+    path: str,
+    name: str,
+    iterations,
+    scenes=[],
+):
+    def get_scene_dir_list():
+        return [
+            os.path.join(path, scene)
+            for scene in scenes
+        ]
+    scene_dir_list = get_scene_dir_list()
 
-iterations = args.iteration if isinstance(args.iteration, (list, tuple)) else [args.iteration]
+    iterations = iterations if isinstance(
+        iterations, (list, tuple)) else [iterations]
 
-for it in iterations:
-    PSNR = 0.0
-    SSIM = 0.0
-    LPIPS = 0.0
-    count = 0
+    for it in iterations:
+        PSNR = 0.0
+        SSIM = 0.0
+        LPIPS = 0.0
+        count = 0
 
-    for d in dir_lst:
-        metrics_file = os.path.join(d, f'metrics_{it}.txt')
-        if not os.path.exists(metrics_file):
-            logging.warning(f"Missing metrics file: {metrics_file}")
+        for d in scene_dir_list:
+            metrics_file = os.path.join(d, f"metrics_{name}_{it}.json")
+            if not os.path.exists(metrics_file):
+                logging.warning(f"Missing metrics file: {metrics_file}")
+                continue
+
+            with open(metrics_file, "r") as f:
+                metrics = json.load(f)
+                PSNR += metrics.get("PSNR", 0.0)
+                SSIM += metrics.get("SSIM", 0.0)
+                LPIPS += metrics.get("LPIPS", 0.0)
+
+            count += 1
+
+        if count == 0:
+            logging.warning(f"No metrics found for iteration {it} in {path}")
             continue
 
-        with open(metrics_file, 'r') as f:
-            l = f.readline()
-            psnr = re.sub(r'[^0-9.\-eE]', '', l)
-            print(d, psnr)
-            PSNR += float(psnr)
+        PSNR /= count
+        SSIM /= count
+        LPIPS /= count
 
-            l = f.readline()
-            ssim = re.sub(r'[^0-9.\-eE]', '', l)
-            SSIM += float(ssim)
+        metric_path = os.path.join(path, f"metrics_mean_{name}_{it}.json")
+        with open(metric_path, "w") as f:
+            json.dump({
+                "PSNR": PSNR,
+                "SSIM": SSIM,
+                "LPIPS": LPIPS,
+            },
+                f,
+                indent=4,
+            )
 
-            l = f.readline()
-            lpips = re.sub(r'[^0-9.\-eE]', '', l)
-            LPIPS += float(lpips)
+        print(f"Iteration {it}:")
+        print(PSNR)
+        print(SSIM)
+        print(LPIPS)
 
-        count += 1
 
-    if count == 0:
-        logging.warning(f"No metrics found for iteration {it} in {args.path}")
-        continue
+def build_parser():
+    parser = ArgumentParser(description="Compute mean metrics across scenes")
+    parser.add_argument("--path", "-s", required=True, type=str)
+    parser.add_argument("--name", "-n", required=True, type=str)
+    parser.add_argument(
+        "--iteration", "-i", nargs="+",
+        default=[10000], type=int)
+    parser.add_argument("--quiet", action="store_true")
+    parser.add_argument("--scenes", nargs="+", default=[])
+    return parser
 
-    PSNR /= count
-    SSIM /= count
-    LPIPS /= count
 
-    metric_path = os.path.join(args.path, f'metrics_mean_{it}.txt')
-    with open(metric_path, 'w') as f:
-        f.write(f'PSNR : {PSNR}\n')
-        f.write(f'SSIM : {SSIM}\n')
-        f.write(f'LPIPS : {LPIPS}\n')
+def main(arg_list=None):
+    parser = build_parser()
+    if arg_list is not None:
+        args = parser.parse_args(arg_list)
+    else:
+        args = parser.parse_args()
+    logging.basicConfig(
+        level=logging.ERROR if getattr(
+            args, "quiet", False) else logging.WARNING,
+        format="%(levelname)s: %(message)s",
+    )
+    compute_mean_metrics(
+        args.path,
+        args.name,
+        args.iteration,
+        args.scenes,
+    )
 
-    print(f'Iteration {it}:')
-    print(PSNR)
-    print(SSIM)
-    print(LPIPS)
+
+if __name__ == "__main__":
+    main()

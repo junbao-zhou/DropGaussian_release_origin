@@ -37,7 +37,10 @@ CODE_EXTENSIONS = {
     ".go",".rs",".rb",".php",".sh",".bash",".zsh",
     ".ps1",".psm1",".pl",".pm",".lua",".r",".R",
     ".swift",".kt",".kts",".scala",".sql",".yaml",".yml",
-    ".toml",".ini",".cfg",".json",".md",".txt"
+    ".toml",".ini",".cfg",".json",".md",".txt",
+    ".cu",
+    ".gitignore",
+    "LICENSE","LICENSE.txt","README","README.md",
 }
 
 def load_gitignore(root: Path) -> List[str]:

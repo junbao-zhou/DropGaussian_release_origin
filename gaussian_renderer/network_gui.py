@@ -27,9 +27,33 @@ def init(wish_host, wish_port):
     global host, port, listener
     host = wish_host
     port = wish_port
+
+    # Recreate socket if it was closed
+    try:
+        listener.close()
+    except Exception:
+        pass
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+
     listener.bind((host, port))
     listener.listen()
     listener.settimeout(0)
+
+def destroy():
+    global conn, addr, listener
+    try:
+        if conn != None:
+            conn.close()
+    except Exception:
+        pass
+    try:
+        listener.close()
+    except Exception:
+        pass
+    conn = None
+    addr = None
+    listener = None
 
 def try_connect():
     global conn, addr, listener

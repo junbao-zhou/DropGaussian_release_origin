@@ -9,6 +9,7 @@
 # For inquiries contact  george.drettakis@inria.fr
 #
 
+import json
 import torch
 from scene import Scene
 import os
@@ -16,6 +17,7 @@ from tqdm import tqdm
 from os import makedirs
 from gaussian_renderer import render
 import torchvision
+from scene.cameras import Camera
 from utils.general_utils import safe_state
 from argparse import ArgumentParser
 from arguments import ModelParams, PipelineParams, get_combined_args
@@ -28,19 +30,19 @@ from lpipsPyTorch import lpips
 
 
 def render_set(
-    model_path,
-    name,
-    iteration,
-    views,
-    gaussians,
-    pipeline,
+    model_path: str,
+    name: str,
+    iteration: int,
+    views: list[Camera],
+    gaussians: GaussianModel,
+    pipeline: PipelineParams,
     background,
     resol=1,
 ):
     render_path = os.path.join(
-        model_path, name, "ours_{}".format(iteration), "renders")
+        model_path, name, f"ours_{iteration}", "renders")
     gts_path = os.path.join(
-        model_path, name, "ours_{}".format(iteration), "gt")
+        model_path, name, f"ours_{iteration}", "gt")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
@@ -53,10 +55,18 @@ def render_set(
         gt = view.original_image[0:3, :, :].cuda()
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
-        torchvision.utils.save_image(rendering, os.path.join(
-            render_path, '{0:05d}'.format(idx) + ".png"))
-        torchvision.utils.save_image(gt, os.path.join(
-            gts_path, '{0:05d}'.format(idx) + ".png"))
+        torchvision.utils.save_image(
+            rendering,
+            os.path.join(
+                render_path, f'{view.image_name}.png',
+            ),
+        )
+        torchvision.utils.save_image(
+            gt,
+            os.path.join(
+                gts_path, f'{view.image_name}.png',
+            ),
+        )
         PSNR.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
         SSIM.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
         LPIPS.append(lpips(rendering.unsqueeze(
@@ -70,43 +80,66 @@ def render_set(
     print('SSIM : {:>12.7f}'.format(ssim_mean))
     print('LPIPS : {:>12.7f}'.format(lpips_mean))
 
-    with open(os.path.join(model_path, 'metrics_{0}.txt'.format(iteration)), 'w') as f:
-        f.write('PSNR : {:>12.7f}\n'.format(psnr_mean))
-        f.write('SSIM : {:>12.7f}\n'.format(ssim_mean))
-        f.write('LPIPS : {:>12.7f}\n'.format(lpips_mean))
+    with open(os.path.join(model_path, f'metrics_{name}_{iteration}.json'), 'w') as f:
+        json.dump({
+            'PSNR': psnr_mean,
+            'SSIM': ssim_mean,
+            'LPIPS': lpips_mean,
+        },
+            f,
+            indent=4,
+        )
 
 
 def render_sets(
-    dataset: ModelParams,
+    dataset_params: ModelParams,
     iteration: int,
-    pipeline: PipelineParams,
+    pipeline_params: PipelineParams,
     skip_train: bool,
     skip_test: bool,
 ):
     with torch.no_grad():
-        gaussians = GaussianModel(dataset.sh_degree)
+        gaussians = GaussianModel(dataset_params.sh_degree)
         scene = Scene(
-            dataset, gaussians,
+            dataset_params, gaussians,
             load_iteration=iteration, shuffle=False,
         )
 
-        bg_color = [1, 1, 1] if dataset.white_background else [0, 0, 0]
+        bg_color = [1, 1, 1] if dataset_params.white_background else [0, 0, 0]
         background = torch.tensor(bg_color, dtype=torch.float32, device="cuda")
 
         if not skip_train:
             render_set(
-                dataset.model_path, "train", scene.loaded_iter,
-                scene.getTrainCameras(), gaussians, pipeline, background,
+                dataset_params.model_path, "train", scene.loaded_iter,
+                scene.getTrainCameras(), gaussians, pipeline_params, background,
             )
 
         if not skip_test:
             render_set(
-                dataset.model_path, "test", scene.loaded_iter,
-                scene.getTestCameras(), gaussians, pipeline, background,
+                dataset_params.model_path, "test", scene.loaded_iter,
+                scene.getTestCameras(), gaussians, pipeline_params, background,
             )
 
 
-def main(args):
+def build_parser():
+    parser = ArgumentParser(description="Testing script parameters")
+    ModelParams(parser, sentinel=True)
+    PipelineParams(parser)
+    parser.add_argument("--iteration", nargs="+", default=[-1], type=int)
+    parser.add_argument("--skip_train", action="store_true")
+    parser.add_argument("--skip_test", action="store_true")
+    parser.add_argument("--quiet", action="store_true")
+    return parser
+
+
+def main(arg_list=None):
+    parser = build_parser()
+    args = get_combined_args(
+        parser,
+        cmdlne_string=arg_list,
+    )
+    print(f"{args = }")
+
     print("Rendering " + args.model_path)
     safe_state(getattr(args, "quiet", False))
 
@@ -114,8 +147,10 @@ def main(args):
     model = ModelParams(ArgumentParser(add_help=False), sentinel=True)
     pipeline = PipelineParams(ArgumentParser(add_help=False))
 
-    dataset = model.extract(args)
-    pipe = pipeline.extract(args)
+    dataset_args = model.extract(args)
+    print(f"{dataset_args = }")
+    pipeline_args = pipeline.extract(args)
+    print(f"{pipeline_args = }")
 
     iterations = args.iteration if isinstance(
         args.iteration, (list, tuple)) else [args.iteration]
@@ -123,19 +158,14 @@ def main(args):
     skip_test = getattr(args, "skip_test", False)
 
     for it in iterations:
-        render_sets(dataset, it, pipe, skip_train, skip_test)
+        render_sets(
+            dataset_args,
+            it,
+            pipeline_args,
+            skip_train,
+            skip_test,
+        )
 
 
 if __name__ == "__main__":
-    # Set up command line argument parser
-    parser = ArgumentParser(description="Testing script parameters")
-    model = ModelParams(parser, sentinel=True)
-    pipeline = PipelineParams(parser)
-    parser.add_argument("--iteration", nargs="+", default=[-1], type=int)
-    parser.add_argument("--skip_train", action="store_true")
-    parser.add_argument("--skip_test", action="store_true")
-    parser.add_argument("--quiet", action="store_true")
-    args = get_combined_args(parser)
-
-    # Delegate to main with parsed args
-    main(args)
+    main()

@@ -91,8 +91,11 @@ class OptimizationParams(ParamGroup):
         self.random_background = False
         super().__init__(parser, "Optimization Parameters")
 
-def get_combined_args(parser : ArgumentParser):
-    cmdlne_string = sys.argv[1:]
+def get_combined_args(
+    parser: ArgumentParser,
+    cmdlne_string: list[str] = None,
+):
+    cmdlne_string = sys.argv[1:] if cmdlne_string is None else cmdlne_string
     cfgfile_string = "Namespace()"
     args_cmdline = parser.parse_args(cmdlne_string)
 
@@ -108,7 +111,7 @@ def get_combined_args(parser : ArgumentParser):
     args_cfgfile = eval(cfgfile_string)
 
     merged_dict = vars(args_cfgfile).copy()
-    for k,v in vars(args_cmdline).items():
-        if v != None:
+    for k, v in vars(args_cmdline).items():
+        if v is not None:
             merged_dict[k] = v
     return Namespace(**merged_dict)
