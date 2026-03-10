@@ -69,9 +69,6 @@ def training(
     iter_start = torch.cuda.Event(enable_timing=True)
     iter_end = torch.cuda.Event(enable_timing=True)
 
-    test_imgs_dir = os.path.join(args.model_path, "test_imgs/")
-    os.makedirs(test_imgs_dir, exist_ok=True)
-
     train_cameras_all = scene.getTrainCameras().copy()
     from utils.camera_utils import (
         print_camera_list,
