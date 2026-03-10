@@ -43,9 +43,11 @@ def render_set(
 ):
     render_path = os.path.join(model_path, name, f"ours_{iteration}", "renders")
     gts_path = os.path.join(model_path, name, "gt")
+    error_maps_path = os.path.join(model_path, name, f"ours_{iteration}", "error_maps")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
+    makedirs(error_maps_path, exist_ok=True)
 
     PSNR = []
     SSIM = []
@@ -65,6 +67,11 @@ def render_set(
         gt_image_save_path = os.path.join(gts_path, f"{view.image_name}.png")
         if not os.path.exists(gt_image_save_path):
             torchvision.utils.save_image(gt, gt_image_save_path)
+        error_map = (gt[:3] - rendering).abs()
+        torchvision.utils.save_image(
+            error_map,
+            os.path.join(error_maps_path, f"{view.image_name}.png"),
+        )
         PSNR.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
         SSIM.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
         LPIPS.append(
