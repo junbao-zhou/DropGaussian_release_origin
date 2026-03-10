@@ -10,6 +10,7 @@
 #
 
 import json
+import shutil
 import torch
 from scene import Scene
 import os
@@ -41,7 +42,7 @@ def render_set(
     resol=1,
 ):
     render_path = os.path.join(model_path, name, f"ours_{iteration}", "renders")
-    gts_path = os.path.join(model_path, name, f"ours_{iteration}", "gt")
+    gts_path = os.path.join(model_path, name, "gt")
 
     makedirs(render_path, exist_ok=True)
     makedirs(gts_path, exist_ok=True)
@@ -51,7 +52,7 @@ def render_set(
     LPIPS = []
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
-        gt = view.original_image[0:3, :, :].cuda()
+        gt = torch.clamp(view.original_image.to("cuda"), 0.0, 1.0)
         render_pkg = render(view, gaussians, pipeline, background)
         rendering = render_pkg["render"]
         torchvision.utils.save_image(
@@ -61,13 +62,9 @@ def render_set(
                 f"{view.image_name}.png",
             ),
         )
-        torchvision.utils.save_image(
-            gt,
-            os.path.join(
-                gts_path,
-                f"{view.image_name}.png",
-            ),
-        )
+        gt_image_save_path = os.path.join(gts_path, f"{view.image_name}.png")
+        if not os.path.exists(gt_image_save_path):
+            torchvision.utils.save_image(gt, gt_image_save_path)
         PSNR.append(psnr(rendering.unsqueeze(0), gt.unsqueeze(0)))
         SSIM.append(ssim(rendering.unsqueeze(0), gt.unsqueeze(0)))
         LPIPS.append(
@@ -94,6 +91,25 @@ def render_set(
             f,
             indent=4,
         )
+
+
+def delete_non_reserved_iterations(model_path: str, reserve_iteration: int,):
+    point_cloud_root = os.path.join(model_path, "point_cloud")
+    if not os.path.isdir(point_cloud_root):
+        print(f"No point_cloud directory found at {point_cloud_root}, skipping cleanup.")
+        return
+    for entry in os.listdir(point_cloud_root):
+        if not entry.startswith("iteration_"):
+            continue
+        try:
+            iter_num = int(entry.split("iteration_")[1])
+        except ValueError:
+            continue
+        if iter_num != reserve_iteration:
+            entry_path = os.path.join(point_cloud_root, entry)
+            print(f"Deleting {entry_path}")
+            shutil.rmtree(entry_path)
+    print(f"Kept only iteration_{reserve_iteration} in {point_cloud_root}")
 
 
 def render_sets(
@@ -146,6 +162,12 @@ def build_parser():
     parser.add_argument("--skip_train", action="store_true")
     parser.add_argument("--skip_test", action="store_true")
     parser.add_argument("--quiet", action="store_true")
+    parser.add_argument(
+        "--reserve_iteration",
+        default=None,
+        type=int,
+        help="Keep only this iteration's point cloud and delete all others to save disk space.",
+    )
     return parser
 
 
@@ -187,6 +209,10 @@ def main(
             skip_train,
             skip_test,
         )
+
+    reserve_iteration = getattr(args, "reserve_iteration", None)
+    if reserve_iteration is not None:
+        delete_non_reserved_iterations(dataset_args.model_path, reserve_iteration)
 
 
 if __name__ == "__main__":

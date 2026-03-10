@@ -195,6 +195,7 @@ def main():
                 method_output_dir.glob(f"output_*")
             )
             existing_max_repeat_index = max(
+                [-1] +
                 [
                     int(d.name.split("_")[-1])
                     for d in existing_repeat_output_dirs
@@ -249,6 +250,8 @@ def main():
                         f"{resolution}",
                         "--iteration",
                         *[str(it) for it in save_iterations],
+                        "--reserve_iteration",
+                        str(save_iterations[-1]),
                     ],
                 )
 

@@ -281,7 +281,6 @@ def training_report(
             gts_path = os.path.join(
                 args.model_path,
                 config["name"],
-                "ours_{}".format(iteration),
                 "gt",
             )
             os.makedirs(render_path, exist_ok=True)
@@ -328,10 +327,14 @@ def training_report(
                             render_path, viewpoint.image_name + ".png"
                         ),
                     )
-                    torchvision.utils.save_image(
-                        gt_image,
-                        os.path.join(gts_path, viewpoint.image_name + ".png"),
+                    gt_image_save_path = os.path.join(
+                        gts_path, viewpoint.image_name + ".png"
                     )
+                    if not os.path.exists(gt_image_save_path):
+                        torchvision.utils.save_image(
+                            gt_image,
+                            os.path.join(gts_path, viewpoint.image_name + ".png"),
+                        )
                 psnr_test /= len(config["cameras"])
                 l1_test /= len(config["cameras"])
                 metrics["l1"] = float(l1_test.item())
